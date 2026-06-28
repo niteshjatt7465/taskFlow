@@ -12,32 +12,42 @@ connectDB();
 
 const app = express();
 
-// ─── Allowed Origins (dev + production) ───────
+// ─── Allowed Origins ──────────────────────────
+// Strip trailing slashes so 'https://example.com/' === 'https://example.com'
+const normalizeOrigin = (url) => (url ? url.replace(/\/+$/, '') : null);
+
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
-  process.env.CLIENT_URL, // Vercel production URL
-].filter(Boolean); // remove undefined/null
+  normalizeOrigin(process.env.CLIENT_URL), // from Render env var
+  'https://task-flow-self-beta.vercel.app', // hardcoded as safety fallback
+].filter(Boolean);
 
-// ─── Middleware ───────────────────────────────
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, curl)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(new Error(`CORS blocked: origin ${origin} not allowed`));
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
-  })
-);
+console.log('✅ Allowed CORS origins:', allowedOrigins);
 
-// Handle preflight OPTIONS requests for all routes
-app.options('*', cors());
+// ─── CORS Middleware ──────────────────────────
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow no-origin requests (Postman, mobile apps, curl)
+    if (!origin) return callback(null, true);
+    // Normalize incoming origin too (strip trailing slash)
+    const normalizedIncoming = normalizeOrigin(origin);
+    if (allowedOrigins.includes(normalizedIncoming)) {
+      return callback(null, true);
+    }
+    console.warn(`⛔ CORS blocked: ${origin}`);
+    return callback(new Error(`CORS policy: origin ${origin} not allowed`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  optionsSuccessStatus: 200, // for legacy browser support
+};
+
+app.use(cors(corsOptions));
+
+// Handle ALL preflight OPTIONS requests globally
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
