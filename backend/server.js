@@ -12,43 +12,12 @@ connectDB();
 
 const app = express();
 
-// ─── Allowed Origins ──────────────────────────
-// Strip trailing slashes so 'https://example.com/' === 'https://example.com'
-const normalizeOrigin = (url) => (url ? url.replace(/\/+$/, '') : null);
+// ─── CORS ────────────────────────────────────
+// Allow ALL origins — safe for a public REST API with no cookie/session auth
+app.use(cors());
+app.options('*', cors()); // Handle preflight for all routes
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  normalizeOrigin(process.env.CLIENT_URL), // from Render env var
-  'https://task-flow-self-beta.vercel.app', // hardcoded as safety fallback
-].filter(Boolean);
-
-console.log('✅ Allowed CORS origins:', allowedOrigins);
-
-// ─── CORS Middleware ──────────────────────────
-const corsOptions = {
-  origin: (origin, callback) => {
-    // Allow no-origin requests (Postman, mobile apps, curl)
-    if (!origin) return callback(null, true);
-    // Normalize incoming origin too (strip trailing slash)
-    const normalizedIncoming = normalizeOrigin(origin);
-    if (allowedOrigins.includes(normalizedIncoming)) {
-      return callback(null, true);
-    }
-    console.warn(`⛔ CORS blocked: ${origin}`);
-    return callback(new Error(`CORS policy: origin ${origin} not allowed`));
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: true,
-  optionsSuccessStatus: 200, // for legacy browser support
-};
-
-app.use(cors(corsOptions));
-
-// Handle ALL preflight OPTIONS requests globally
-app.options('*', cors(corsOptions));
-
+// ─── Body Parsers ─────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
